@@ -1,0 +1,30 @@
+name: Release Regression Data
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set version (based on date or commit)
+        run: echo "RELEASE_TAG=v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Create archive (excluding README and LICENSE)
+        run: |
+          mkdir dist
+          tar --exclude='README.md' --exclude='LICENSE' -czf dist/data.tar.gz .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "Automated release ${{ env.RELEASE_TAG }}"
+          files: dist/data.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
