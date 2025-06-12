@@ -80,6 +80,7 @@ jobs:
           """
           
           write("dist/Artifacts.toml", artifact_toml)
+          '
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
