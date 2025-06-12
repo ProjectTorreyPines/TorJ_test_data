@@ -18,7 +18,18 @@ jobs:
       - name: Create archive (excluding README and LICENSE)
         run: |
           mkdir dist
-          tar --exclude='README.md' --exclude='LICENSE' -czf dist/data.tar.gz .
+          # Create a clean directory structure for the tar
+          mkdir temp_archive
+          cp -r . temp_archive/
+          cd temp_archive
+          rm -f README.md LICENSE .git* .github*
+          # Normalize permissions and create reproducible tar
+          find . -type f -exec chmod 644 {} \;
+          find . -type d -exec chmod 755 {} \;
+          # Create tar with normalized timestamps
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2000-01-01' -czf ../dist/data.tar.gz *
+          cd ..
+          rm -rf temp_archive
 
       - name: Set up Julia
         uses: julia-actions/setup-julia@v1
@@ -30,7 +41,7 @@ jobs:
           # Install required Julia packages
           julia -e 'using Pkg; Pkg.add(["Tar", "CodecZlib", "SHA"])'
           
-          # Compute both hashes
+          # Compute both hashes with debugging
           julia -e '
           using Tar, CodecZlib, SHA
           
@@ -42,20 +53,53 @@ jobs:
           
           # Decompress and compute git-tree-sha1 of contents
           decompressed = transcode(GzipDecompressor, tarball_data)
+          
+          # Debug: Check what files are in the tar
+          println("Files in tarball:")
+          Tar.list(IOBuffer(decompressed)) do hdr
+              println("  $(hdr.path) (type: $(hdr.type), size: $(hdr.size))")
+          end
+          
+          # Compute tree hash
           tree_sha = Tar.tree_hash(IOBuffer(decompressed))
+          
+          # Alternative method for comparison (using artifact_hash from Pkg)
+          using Pkg.Artifacts
+          temp_dir = mktempdir()
+          try
+              Tar.extract(IOBuffer(decompressed), temp_dir)
+              alt_tree_sha = Pkg.Artifacts.artifact_hash(temp_dir)
+              println("Tar.tree_hash result: $tree_sha")
+              println("Pkg.Artifacts.artifact_hash result: $alt_tree_sha")
+              
+              # Use the Pkg.Artifacts version as it matches what Julia expects
+              final_tree_sha = alt_tree_sha
+          finally
+              rm(temp_dir, recursive=true)
+          end
           
           # Create the artifact info in TOML format
           artifact_toml = """
           [data]
-          git-tree-sha1 = "$tree_sha"
+          git-tree-sha1 = "$final_tree_sha"
           
           [[data.download]]
           url = "https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/data.tar.gz"
           sha256 = "$tarball_sha"
-          lazy = true
           """
           
           write("dist/Artifacts.toml", artifact_toml)
+          
+          # Also create a simple hash info file for reference
+          hash_info = """
+          Tarball SHA256: $tarball_sha
+          Git-tree SHA1: $final_tree_sha
+          Tar.tree_hash: $tree_sha
+          Pkg.Artifacts.artifact_hash: $alt_tree_sha
+          Release: ${{ env.RELEASE_TAG }}
+          """
+          
+          write("dist/hash-info.txt", hash_info)
           '
 
       - name: Create GitHub Release
@@ -74,3 +118,6 @@ jobs:
         run: |
           echo "Generated Artifacts.toml:"
           cat dist/Artifacts.toml
+          echo ""
+          echo "Hash information:"
+          cat dist/hash-info.txt
