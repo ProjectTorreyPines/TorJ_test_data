@@ -59,11 +59,11 @@ jobs:
           temp_dir = mktempdir()
           try
               Tar.extract(IOBuffer(decompressed), temp_dir)
-              alt_tree_sha = Pkg.Artifacts.artifact_hash(temp_dir)
+              alt_tree_sha = Artifacts.artifact_hash(temp_dir)
               println("Tar.tree_hash result: $tree_sha")
-              println("Pkg.Artifacts.artifact_hash result: $alt_tree_sha")
+              println("Artifacts.artifact_hash result: $alt_tree_sha")
               
-              # Use the Pkg.Artifacts version as it matches what Julia expects
+              # Use the Artifacts version as it matches what Julia expects
               final_tree_sha = alt_tree_sha
           finally
               rm(temp_dir, recursive=true)
@@ -80,18 +80,6 @@ jobs:
           """
           
           write("dist/Artifacts.toml", artifact_toml)
-          
-          # Also create a simple hash info file for reference
-          hash_info = """
-          Tarball SHA256: $tarball_sha
-          Git-tree SHA1: $final_tree_sha
-          Tar.tree_hash: $tree_sha
-          Pkg.Artifacts.artifact_hash: $alt_tree_sha
-          Release: ${{ env.RELEASE_TAG }}
-          """
-          
-          write("dist/hash-info.txt", hash_info)
-          '
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -101,7 +89,6 @@ jobs:
           files: |
             dist/data.tar.gz
             dist/Artifacts.toml
-            dist/hash-info.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -109,6 +96,3 @@ jobs:
         run: |
           echo "Generated Artifacts.toml:"
           cat dist/Artifacts.toml
-          echo ""
-          echo "Hash information:"
-          cat dist/hash-info.txt
