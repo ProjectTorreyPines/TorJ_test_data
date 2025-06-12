@@ -18,18 +18,9 @@ jobs:
       - name: Create archive (excluding README and LICENSE)
         run: |
           mkdir dist
-          # Create a clean directory structure for the tar
-          mkdir temp_archive
-          cp -r . temp_archive/
-          cd temp_archive
-          rm -f README.md LICENSE .git* .github*
-          # Normalize permissions and create reproducible tar
-          find . -type f -exec chmod 644 {} \;
-          find . -type d -exec chmod 755 {} \;
-          # Create tar with normalized timestamps
-          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2000-01-01' -czf ../dist/data.tar.gz *
-          cd ..
-          rm -rf temp_archive
+          # Create reproducible tar directly, excluding unwanted files
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2000-01-01' \
+              -czf dist/data.tar.gz data/
 
       - name: Set up Julia
         uses: julia-actions/setup-julia@v1
