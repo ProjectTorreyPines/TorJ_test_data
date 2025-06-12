@@ -54,12 +54,13 @@ jobs:
           
           # Extract to temp directory and compute hash properly
           temp_dir = mktempdir()
+          final_tree_sha = ""
           try
               Tar.extract(IOBuffer(decompressed), temp_dir)
               
               # Compute git-tree-sha1 using GitTools
               tree_sha_bytes = Pkg.GitTools.tree_hash(temp_dir)
-              final_tree_sha = bytes2hex(tree_sha_bytes)
+              global final_tree_sha = bytes2hex(tree_sha_bytes)
               
               println("Computed git-tree-sha1: $final_tree_sha")
           finally
