@@ -52,6 +52,7 @@ jobs:
           [[data.download]]
           url = "https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/data.tar.gz"
           sha256 = "$tarball_sha"
+          lazy = true
           """
           
           write("dist/Artifacts.toml", artifact_toml)
