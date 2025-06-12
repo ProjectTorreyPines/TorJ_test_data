@@ -55,15 +55,6 @@ jobs:
           """
           
           write("dist/Artifacts.toml", artifact_toml)
-          
-          # Also create a simple hash info file for reference
-          hash_info = """
-          Tarball SHA256: $tarball_sha
-          Git-tree SHA1: $tree_sha
-          Release: ${{ env.RELEASE_TAG }}
-          """
-          
-          write("dist/hash-info.txt", hash_info)
           '
 
       - name: Create GitHub Release
