@@ -12,7 +12,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       
-
       - name: Set version (based on date or commit)
         run: echo "RELEASE_TAG=v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
@@ -21,42 +20,68 @@ jobs:
           mkdir dist
           tar --exclude='README.md' --exclude='LICENSE' -czf dist/data.tar.gz .
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: "Automated release ${{ env.RELEASE_TAG }}"
-          files: dist/data.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
-  compute-hash:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Set up Julia
         uses: julia-actions/setup-julia@v1
         with:
           version: '1.10'
 
-      - name: Download release archive
-        run: curl -L -o data.tar.gz https://github.com/YOURUSER/sample-data/releases/download/latest/data.tar.gz
-
-      - name: Compute git-tree-sha1
+      - name: Compute hashes
         run: |
-          julia --project -e <<EOF
-            using Pkg
-            Pkg.add(["Tar", "Inflate", "SHA"])
-            using Tar, Inflate, SHA
+          # Install required Julia packages
+          julia -e 'using Pkg; Pkg.add(["Tar", "CodecZlib", "SHA"])'
+          
+          # Compute both hashes
+          julia -e '
+          using Tar, CodecZlib, SHA
+          
+          # Read the tarball
+          tarball_data = read("dist/data.tar.gz")
+          
+          # Compute SHA256 of the tarball itself
+          tarball_sha = bytes2hex(sha256(tarball_data))
+          
+          # Decompress and compute git-tree-sha1 of contents
+          decompressed = transcode(GzipDecompressor, tarball_data)
+          tree_sha = Tar.tree_hash(IOBuffer(decompressed))
+          
+          # Create the artifact info in TOML format
+          artifact_toml = """
+          [data]
+          git-tree-sha1 = "$tree_sha"
+          
+          [[data.download]]
+          url = "https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}/data.tar.gz"
+          sha256 = "$tarball_sha"
+          """
+          
+          write("dist/Artifacts.toml", artifact_toml)
+          
+          # Also create a simple hash info file for reference
+          hash_info = """
+          Tarball SHA256: $tarball_sha
+          Git-tree SHA1: $tree_sha
+          Release: ${{ env.RELEASE_TAG }}
+          """
+          
+          write("dist/hash-info.txt", hash_info)
+          '
 
-            filename = "data.tar.gz"
-            sha = "sha256: "* bytes2hex(open(sha256, filename)))
-            git-tree-sha = "git-tree-sha1: "* Tar.tree_hash(IOBuffer(inflate_gzip(filename)))
-            write("artifact-info.toml", "[data]\n $sha\ngit-tree-sha\n")
-          EOF
-
-      - name: Upload artifact-info
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: artifact-info.toml
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "Automated release ${{ env.RELEASE_TAG }}"
+          files: |
+            dist/data.tar.gz
+            dist/Artifacts.toml
+            dist/hash-info.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output hashes for reference
+        run: |
+          echo "Generated Artifacts.toml:"
+          cat dist/Artifacts.toml
+          echo ""
+          echo "Hash information:"
+          cat dist/hash-info.txt
