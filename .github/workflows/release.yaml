@@ -15,10 +15,10 @@ jobs:
       - name: Set version (based on date or commit)
         run: echo "RELEASE_TAG=v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Create archive (excluding README and LICENSE)
+      - name: Create archive of data folder
         run: |
           mkdir dist
-          # Create reproducible tar directly, excluding unwanted files
+          # Create reproducible tar of just the data folder
           tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2000-01-01' \
               -czf dist/data.tar.gz data/
 
@@ -30,11 +30,12 @@ jobs:
       - name: Compute hashes
         run: |
           # Install required Julia packages
-          julia -e 'using Pkg; Pkg.add(["Tar", "CodecZlib", "SHA"])'
+          julia -e 'using Pkg; Pkg.add(["Tar", "CodecZlib", "SHA", "GitTools"])'
           
-          # Compute both hashes with debugging
+          # Compute both hashes
           julia -e '
           using Tar, CodecZlib, SHA
+          using Pkg.GitTools
           
           # Read the tarball
           tarball_data = read("dist/data.tar.gz")
@@ -51,20 +52,16 @@ jobs:
               println("  $(hdr.path) (type: $(hdr.type), size: $(hdr.size))")
           end
           
-          # Compute tree hash
-          tree_sha = Tar.tree_hash(IOBuffer(decompressed))
-          
-          # Alternative method for comparison (using artifact_hash from Pkg)
-          using Pkg.Artifacts
+          # Extract to temp directory and compute hash properly
           temp_dir = mktempdir()
           try
               Tar.extract(IOBuffer(decompressed), temp_dir)
-              alt_tree_sha = Artifacts.artifact_hash(temp_dir)
-              println("Tar.tree_hash result: $tree_sha")
-              println("Artifacts.artifact_hash result: $alt_tree_sha")
               
-              # Use the Artifacts version as it matches what Julia expects
-              final_tree_sha = alt_tree_sha
+              # Compute git-tree-sha1 using GitTools
+              tree_sha_bytes = GitTools.tree_hash(temp_dir)
+              final_tree_sha = bytes2hex(tree_sha_bytes)
+              
+              println("Computed git-tree-sha1: $final_tree_sha")
           finally
               rm(temp_dir, recursive=true)
           end
@@ -93,7 +90,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Output hashes for reference
+      - name: Output computed hashes
         run: |
           echo "Generated Artifacts.toml:"
           cat dist/Artifacts.toml
