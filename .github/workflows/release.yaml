@@ -73,6 +73,3 @@ jobs:
         run: |
           echo "Generated Artifacts.toml:"
           cat dist/Artifacts.toml
-          echo ""
-          echo "Hash information:"
-          cat dist/hash-info.txt
