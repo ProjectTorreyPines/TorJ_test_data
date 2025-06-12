@@ -30,12 +30,12 @@ jobs:
       - name: Compute hashes
         run: |
           # Install required Julia packages
-          julia -e 'using Pkg; Pkg.add(["Tar", "CodecZlib", "SHA", "GitTools"])'
+          julia -e 'using Pkg; Pkg.add(["Tar", "CodecZlib", "SHA"])'
           
           # Compute both hashes
           julia -e '
           using Tar, CodecZlib, SHA
-          using GitTools
+          using Pkg
           
           # Read the tarball
           tarball_data = read("dist/data.tar.gz")
@@ -58,7 +58,7 @@ jobs:
               Tar.extract(IOBuffer(decompressed), temp_dir)
               
               # Compute git-tree-sha1 using GitTools
-              tree_sha_bytes = GitTools.tree_hash(temp_dir)
+              tree_sha_bytes = Pkg.GitTools.tree_hash(temp_dir)
               final_tree_sha = bytes2hex(tree_sha_bytes)
               
               println("Computed git-tree-sha1: $final_tree_sha")
