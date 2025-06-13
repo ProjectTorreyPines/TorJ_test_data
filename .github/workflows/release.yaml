@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    uses: ProjectTorreyPines/GitHubActionsWorkflows/.github/workflows/artifact_release.yml@artifact_release_workflow
+    uses: ProjectTorreyPines/GitHubActionsWorkflows/.github/workflows/artifact_release.yml@master
     secrets: inherit
     with:
       data_path: "data"
